@@ -51,8 +51,9 @@ def health():
 def tasks_endpoint():
     return list(TASKS.keys())
 
+@app.post("/reset")
 @app.post("/reset/{task_id}")
-def reset_endpoint(task_id: str):
+def reset_endpoint(task_id: str = "easy"):
     if task_id not in TASKS:
         raise HTTPException(status_code=404, detail="Task not found")
     
@@ -74,8 +75,9 @@ def state_endpoint(task_id: str):
     env = running_envs[task_id]
     return env.state().model_dump()
 
+@app.post("/step")
 @app.post("/step/{task_id}")
-def step_endpoint(task_id: str, action: Action):
+def step_endpoint(action: Action, task_id: str = "easy"):
     if task_id not in running_envs:
         raise HTTPException(status_code=404, detail="Simulation not started. Call /start first.")
     
