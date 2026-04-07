@@ -1,0 +1,168 @@
+﻿
+============================================================
+TEST: Root endpoint
+GET https://ap2707-personal-finance-env.hf.space/
+STATUS: 200
+RESPONSE: {
+  "message": "Personal Finance OpenEnv is running.",
+  "version": "1.0.0",
+  "tasks": [
+    "easy",
+    "medium",
+    "hard"
+  ]
+}
+
+============================================================
+TEST: Health check
+GET https://ap2707-personal-finance-env.hf.space/health
+STATUS: 200
+RESPONSE: {
+  "status": "ok"
+}
+
+============================================================
+TEST: List tasks
+GET https://ap2707-personal-finance-env.hf.space/tasks
+STATUS: 200
+RESPONSE: [
+  "easy",
+  "medium",
+  "hard"
+]
+
+============================================================
+TEST: Reset easy task
+POST https://ap2707-personal-finance-env.hf.space/reset/easy
+STATUS: 200
+RESPONSE: {
+  "status": "started",
+  "observation": {
+    "month": 1,
+    "checking_balance": 1000.0,
+    "savings_balance": 0.0,
+    "monthly_income": 2500.0,
+    "fixed_expenses_due": 1500.0,
+    "debts": [
+      {
+        "name": "Credit Card",
+        "balance": 1200.0,
+        "interest_rate": 0.2,
+        "minimum_payment": 50.0
+      }
+    ],
+    "task_description": "Pay off the 'Credit Card' debt completely within 4 months without letting your checking balance drop below zero. You receive your salary every month, and fixed expenses are automatically deducted."
+  }
+}
+
+============================================================
+TEST: Get state (easy)
+GET https://ap2707-personal-finance-env.hf.space/state/easy
+STATUS: 200
+RESPONSE: {
+  "month": 1,
+  "checking_balance": 1000.0,
+  "savings_balance": 0.0,
+  "monthly_income": 2500.0,
+  "fixed_expenses_due": 1500.0,
+  "debts": [
+    {
+      "name": "Credit Card",
+      "balance": 1200.0,
+      "interest_rate": 0.2,
+      "minimum_payment": 50.0
+    }
+  ],
+  "task_description": "Pay off the 'Credit Card' debt completely within 4 months without letting your checking balance drop below zero. You receive your salary every month, and fixed expenses are automatically deducted."
+}
+
+============================================================
+TEST: Step easy task
+POST https://ap2707-personal-finance-env.hf.space/step/easy
+STATUS: 200
+RESPONSE: {
+  "observation": {
+    "month": 2,
+    "checking_balance": 1800.0,
+    "savings_balance": 0.0,
+    "monthly_income": 2500.0,
+    "fixed_expenses_due": 1500.0,
+    "debts": [
+      {
+        "name": "Credit Card",
+        "balance": 1016.6666666666666,
+        "interest_rate": 0.2,
+        "minimum_payment": 50.0
+      }
+    ],
+    "task_description": "Pay off the 'Credit Card' debt completely within 4 months without letting your checking balance drop below zero. You receive your salary every month, and fixed expenses are automatically deducted."
+  },
+  "reward": {
+    "value": 1.8333333333333337,
+    "reason": "Month advanced. Paid down debt by $183.33."
+  },
+  "done": false,
+  "info": {
+    "task_name": "easy",
+    "done": false,
+    "score": 0.0
+  }
+}
+
+============================================================
+TEST: Reset medium task
+POST https://ap2707-personal-finance-env.hf.space/reset/medium
+STATUS: 200
+RESPONSE: {
+  "status": "started",
+  "observation": {
+    "month": 1,
+    "checking_balance": 1000.0,
+    "savings_balance": 500.0,
+    "monthly_income": 4000.0,
+    "fixed_expenses_due": 2500.0,
+    "debts": [],
+    "task_description": "Build an emergency savings fund of at least $3000 within 6 months. Maintain your checking balance above 0."
+  }
+}
+
+============================================================
+TEST: Reset hard task
+POST https://ap2707-personal-finance-env.hf.space/reset/hard
+STATUS: 200
+RESPONSE: {
+  "status": "started",
+  "observation": {
+    "month": 1,
+    "checking_balance": 1500.0,
+    "savings_balance": 0.0,
+    "monthly_income": 5000.0,
+    "fixed_expenses_due": 3000.0,
+    "debts": [
+      {
+        "name": "Credit Card",
+        "balance": 4000.0,
+        "interest_rate": 0.22,
+        "minimum_payment": 120.0
+      },
+      {
+        "name": "Car Loan",
+        "balance": 15000.0,
+        "interest_rate": 0.06,
+        "minimum_payment": 350.0
+      }
+    ],
+    "task_description": "You have 12 months. Goal: Eliminate your 22% APR Credit Card debt (starts at $4000) AND build up at least $1000 in your savings account. Do not drop checking below $0."
+  }
+}
+
+============================================================
+TEST: Invalid task (should 404)
+POST https://ap2707-personal-finance-env.hf.space/reset/nonexistent
+STATUS: 404
+RESPONSE: {
+  "detail": "Task not found"
+}
+
+============================================================
+ALL TESTS COMPLETE

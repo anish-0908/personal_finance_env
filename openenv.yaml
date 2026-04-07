@@ -1,0 +1,29 @@
+name: personal-finance-env
+description: "A real-world OpenEnv for simulating Personal Finance Decisions like budgeting and debt payoff."
+version: 1.0.0
+tasks:
+  - id: easy
+    description: "Pay off a small credit card debt within 4 months."
+  - id: medium
+    description: "Build an emergency fund of $3000 within 6 months while covering fixed expenses."
+  - id: hard
+    description: "Optimize payoff of a high-interest credit card and a low-interest loan while saving $1000 over 12 months."
+api_variables:
+  - name: API_BASE_URL
+    description: "The base URL for the OpenAI-compatible LLM API endpoint."
+    example: "https://api.openai.com/v1"
+  - name: MODEL_NAME
+    description: "The model identifier to use for inference."
+    example: "gpt-4o-mini"
+  - name: HF_TOKEN
+    description: "Your Hugging Face API key / OpenAI API key for authenticating LLM calls."
+spaces_deployment:
+  app_file: app.py
+  sdk: docker
+  sdk_version: "3.9"
+  runtime: docker
+  space_url: "https://huggingface.co/spaces/ap2707/personal_finance_env"
+  tags:
+    - openenv
+    - finance
+    - environment

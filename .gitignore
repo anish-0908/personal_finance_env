@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.txt
+!requirements.txt
+!README.md
+!test_results.txt
+
+# ignore all the validation output logs
+out*.txt
+val_*.txt
+validate_*.txt
+temp_*.txt
