@@ -61,8 +61,10 @@ def reset_endpoint(task_id: str):
     running_envs[task_id] = env
     
     return {
-        "status": "started",
-        "observation": obs.model_dump()
+        "observation": obs.model_dump(),
+        "info": {
+            "message": f"Environment reset successful. Starting balance: {obs.checking_balance}"
+        }
     }
 
 @app.get("/state/{task_id}")
