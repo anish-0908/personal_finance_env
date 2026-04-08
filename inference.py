@@ -122,6 +122,8 @@ def run_inference():
         logging.info(f"  Time elapsed: {_elapsed():.0f}s / {MAX_RUNTIME_SECONDS}s cap")
         logging.info(f"{'='*50}")
 
+        print(f"[START] task={task_id}", flush=True)
+
         env = PersonalFinanceEnv(task_id=task_id)
         obs = env.reset()
 
@@ -197,6 +199,8 @@ def run_inference():
 
             logging.info(f"  Action: {action.model_dump()}")
             obs, reward, done, info = env.step(action)
+            
+            print(f"[STEP] step={step} reward={reward.value}", flush=True)
 
             messages.append({
                 "role": "assistant",
@@ -217,6 +221,8 @@ def run_inference():
         score = max(0.0, min(1.0, score))
         scores[task_id] = score
         logging.info(f"  Task '{task_id}' finished. Score: {score:.4f}")
+        
+        print(f"[END] task={task_id} score={score} steps={step}", flush=True)
 
     # ── Final summary (machine-readable) ──
     total = sum(scores.values())
