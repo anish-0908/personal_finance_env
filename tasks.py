@@ -32,7 +32,7 @@ class EasyTask(BaseTask):
         
     def calculate_reward_and_done(self, prev_obs: Observation, current_obs: Observation) -> tuple[float, str, bool, float]:
         if current_obs.checking_balance < 0:
-            return -10.0, "Checking balance dropped below zero. Bankruptcy.", True, 0.0
+            return -10.0, "Checking balance dropped below zero. Bankruptcy.", True, 0.01
             
         cc_debt = next((d for d in current_obs.debts if d.name == "Credit Card"), None)
         cc_bal = cc_debt.balance if cc_debt else 0.0
@@ -43,7 +43,7 @@ class EasyTask(BaseTask):
         reward = 0.0
         reason = "Month advanced."
         done = False
-        score = 0.0
+        score = 0.01
         
         # Reward for paying down debt
         if cc_bal < prev_bal:
@@ -54,12 +54,13 @@ class EasyTask(BaseTask):
             reward += 10.0
             reason += " Successfully paid off Credit Card!"
             done = True
-            score = 1.0
+            score = 0.99
         elif current_obs.month >= self.max_months:
             done = True
-            score = max(0.0, (1200.0 - cc_bal) / 1200.0)
+            raw_score = max(0.0, (1200.0 - cc_bal) / 1200.0)
+            score = max(0.01, min(0.99, raw_score))
             reason += f" Reached maximum months. Final debt: ${cc_bal:.2f}."
-            if score == 1.0:
+            if raw_score >= 0.99:
                 reward += 10.0
             
         return reward, reason, done, score
@@ -82,12 +83,12 @@ class MediumTask(BaseTask):
 
     def calculate_reward_and_done(self, prev_obs: Observation, current_obs: Observation) -> tuple[float, str, bool, float]:
         if current_obs.checking_balance < 0:
-            return -10.0, "Checking balance dropped below zero.", True, 0.0
+            return -10.0, "Checking balance dropped below zero.", True, 0.01
             
         reward = 0.0
         reason = "Month advanced."
         done = False
-        score = 0.0
+        score = 0.01
         
         if current_obs.savings_balance > prev_obs.savings_balance:
             saved = current_obs.savings_balance - prev_obs.savings_balance
@@ -98,12 +99,13 @@ class MediumTask(BaseTask):
             reward += 10.0
             reason += " Successfully built emergency fund!"
             done = True
-            score = 1.0
+            score = 0.99
         elif current_obs.month >= self.max_months:
             done = True
-            score = min(1.0, current_obs.savings_balance / 3000.0)
+            raw_score = min(1.0, current_obs.savings_balance / 3000.0)
+            score = max(0.01, min(0.99, raw_score))
             reason += f" Reached maximum months. Final savings: ${current_obs.savings_balance:.2f}."
-            if score == 1.0:
+            if raw_score >= 0.99:
                  reward += 10.0
                  
         return reward, reason, done, score
@@ -129,12 +131,12 @@ class HardTask(BaseTask):
 
     def calculate_reward_and_done(self, prev_obs: Observation, current_obs: Observation) -> tuple[float, str, bool, float]:
         if current_obs.checking_balance < 0:
-            return -10.0, "Checking balance dropped below zero.", True, 0.0
+            return -10.0, "Checking balance dropped below zero.", True, 0.01
             
         reward = 0.0
         reason = "Month advanced."
         done = False
-        score = 0.0
+        score = 0.01
         
         cur_cc = next((d for d in current_obs.debts if d.name == "Credit Card"), None)
         cur_cc_bal = cur_cc.balance if cur_cc else 0.0
@@ -154,14 +156,15 @@ class HardTask(BaseTask):
              
         if cur_cc_bal == 0 and current_obs.savings_balance >= 1000.0:
              done = True
-             score = 1.0
+             score = 0.99
              reward += 10.0
              reason += " Surpassed goal successfully!"
         elif current_obs.month >= self.max_months:
             done = True
             cc_score = max(0.0, (4000.0 - cur_cc_bal) / 4000.0)
             sav_score = min(1.0, current_obs.savings_balance / 1000.0)
-            score = (cc_score + sav_score) / 2.0
+            raw_score = (cc_score + sav_score) / 2.0
+            score = max(0.01, min(0.99, raw_score))
             reason += f" Simulation ended. CC score: {cc_score:.2f}, Savings score: {sav_score:.2f}"
             
         return reward, reason, done, score
