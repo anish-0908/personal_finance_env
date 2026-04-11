@@ -1,157 +1,143 @@
-import os
+from __future__ import annotations
+
 import json
-import jsonref
 import logging
+import os
+
+import jsonref
 from openai import OpenAI
 from pydantic import TypeAdapter
+
 from env import PersonalFinanceEnv
-from tasks import TASKS
 from models import Action
+from tasks import TASKS
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
-def get_action_schema():
-    # Helper to generate standard JSON schema for function calling / structured outputs
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def get_action_schema() -> dict:
+    """Return a clean JSON Schema for :class:`~models.Action` (no ``$defs`` / cycles)."""
     adapter = TypeAdapter(Action)
-    schema = adapter.json_schema()
-    # Resolve any $refs without using Proxy dictionaries to avoid JSON serialization errors
-    resolved = jsonref.replace_refs(schema, proxies=False)
-    # the resolved dictionary may still contain $defs which some endpoints reject
-    if "$defs" in resolved:
-        del resolved["$defs"]
-    return resolved
+    schema = jsonref.replace_refs(adapter.json_schema(), proxies=False)
+    schema.pop("$defs", None)
+    return schema
 
 
-def run_baseline():
+# ---------------------------------------------------------------------------
+# Main routine
+# ---------------------------------------------------------------------------
+
+def run_baseline() -> None:
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        logging.warning("No OPENAI_API_KEY found. Skipping API calls.")
+        logger.warning("OPENAI_API_KEY is not set — skipping API calls.")
         return
 
     client = OpenAI(api_key=api_key)
-
     model = "gpt-4o-mini"
     action_schema = get_action_schema()
-
     total_score = 0.0
 
-    for task_id in TASKS.keys():
-        logging.info(f"--- Starting Task: {task_id.upper()} ---")
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "take_action",
+                "description": "Take financial actions for the current month.",
+                "parameters": action_schema,
+            },
+        }
+    ]
+
+    system_prompt = (
+        "You are an AI financial advisor agent. "
+        "Your goal is to complete the user's financial tasks by allocating funds appropriately. "
+        "Analyze balances, debts, and income. "
+        "Decide save_amount, pay_debts, and discretionary_spend. "
+        "IMPORTANT: checking_balance must NEVER go below 0. "
+        "save_amount + total pay_debts must not exceed the checking balance."
+    )
+
+    for task_id in TASKS:
+        logger.info("--- Starting Task: %s ---", task_id.upper())
 
         env = PersonalFinanceEnv(task_id=task_id)
         obs = env.reset()
 
         done = False
         step = 0
-        info = None  # ✅ FIX: prevent crash
+        info = None
 
-        system_prompt = (
-            "You are an AI financial advisor agent. "
-            "Your goal is to complete the user's financial tasks by allocating funds appropriately. "
-            "Analyze balances, debts, and income. "
-            "Decide save_amount, pay_debts, discretionary_spend. "
-            "IMPORTANT: checking_balance must NEVER go below 0. "
-            "save_amount + pay_debts must not exceed checking balance."
-        )
-
-        messages = [{"role": "system", "content": system_prompt}]
-
-        tools = [{
-            "type": "function",
-            "function": {
-                "name": "take_action",
-                "description": "Take financial actions for the current month.",
-                "parameters": action_schema
-            }
-        }]
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
         while not done:
             step += 1
-
             obs_json = obs.model_dump_json()
-            messages.append({
-                "role": "user",
-                "content": f"Current State:\n{obs_json}"
-            })
+            messages.append({"role": "user", "content": f"Current State:\n{obs_json}"})
 
-            logging.info(
-                f"Step {step}: Month={obs.month}, "
-                f"Checking=${obs.checking_balance:.2f}, "
-                f"Savings=${obs.savings_balance:.2f}"
+            logger.info(
+                "Step %d: Month=%d, Checking=$%.2f, Savings=$%.2f",
+                step, obs.month, obs.checking_balance, obs.savings_balance,
             )
-
-            for d in obs.debts:
-                logging.info(
-                    f"  Debt {d.name}: ${d.balance:.2f} "
-                    f"(Min Pay: ${d.minimum_payment:.2f})"
+            for debt in obs.debts:
+                logger.info(
+                    "  Debt %s: $%.2f (Min Pay: $%.2f)",
+                    debt.name, debt.balance, debt.minimum_payment,
                 )
 
-            # 🔥 OpenAI Call
+            # LLM call
             try:
                 response = client.chat.completions.create(
                     model=model,
                     messages=messages,
                     tools=tools,
                     tool_choice={"type": "function", "function": {"name": "take_action"}},
-                    temperature=0.0
+                    temperature=0.0,
                 )
             except Exception as e:
-                logging.error(f"OpenAI API Error: {e}")
+                logger.error("OpenAI API error: %s", e)
                 break
 
-            # 🔥 Parse tool response safely
+            # Parse tool response
             tool_calls = response.choices[0].message.tool_calls
-
             if tool_calls and tool_calls[0].function.name == "take_action":
-                arguments = tool_calls[0].function.arguments
-
+                raw = tool_calls[0].function.arguments
                 try:
-                    # ✅ FIX: handle both string & dict
-                    if isinstance(arguments, str):
-                        action_data = json.loads(arguments)
-                    else:
-                        action_data = arguments
-
+                    action_data = json.loads(raw) if isinstance(raw, str) else raw
                     action = Action(**action_data)
-
                 except Exception as e:
-                    logging.error(f"Failed to parse Action output: {arguments}. Error: {e}")
-                    action = Action()  # fallback
-
+                    logger.error("Failed to parse action '%s': %s — using default.", raw, e)
+                    action = Action()
             else:
-                logging.error("No valid action returned by model.")
+                logger.error("No valid tool call returned by model — using default action.")
                 action = Action()
 
-            # 🔥 Apply action
-            logging.info(f"Action: {action.model_dump()}")
-
+            logger.info("Action: %s", action.model_dump())
             obs, reward, done, info = env.step(action)
 
-            # ✅ FIX: JSON-safe messages
             messages.append({
                 "role": "assistant",
-                "content": f"Executed action: {json.dumps(action.model_dump())}"
+                "content": f"Executed action: {json.dumps(action.model_dump())}",
             })
-
             messages.append({
                 "role": "user",
                 "content": (
-                    f"Result:\n"
-                    f"{json.dumps(reward.reason)}\n"
+                    f"Result:\n{json.dumps(reward.reason)}\n"
                     f"Reward: {reward.value}\n"
                     f"Done: {done}"
-                )
+                ),
             })
 
-        # ✅ FIX: safe info usage
-        if info is not None:
-            logging.info(f"Finished Task {task_id}. Score: {info.score:.2f}\n")
-            total_score += info.score
-        else:
-            logging.info(f"Finished Task {task_id}. Score: 0.00 (Error)\n")
+        score = info.score if info is not None else 0.0
+        logger.info("Finished Task '%s'. Score: %.2f\n", task_id, score)
+        total_score += score
 
-    logging.info(f"Final Total Score: {total_score:.2f} / {len(TASKS)}")
+    logger.info("Final Total Score: %.2f / %d", total_score, len(TASKS))
 
 
 if __name__ == "__main__":
